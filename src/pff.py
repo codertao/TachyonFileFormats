@@ -1,4 +1,5 @@
 from construct import *
+import datetime
 
 PFF3_HEADER = Struct(
   "header_size" / Int32ul,
@@ -10,7 +11,7 @@ PFF3_HEADER = Struct(
 )
 
 PFF_FOOTER = Struct(
-  "system_ip" / Int32ul,
+  "system_ip" / Int32ub,
   "reserved1" / Int32ul,
   "king_tag" / Const(b"KING")
 )
@@ -24,11 +25,11 @@ PFF_FILE_ENTRY_v1 = Struct(
 )
 
 PFF_FILE_ENTRY_v2 = PFF_FILE_ENTRY_v1 + Struct(
-  "modified_date" / Int32ul
+  "unknown1" / Int32ul # other extractors say this is a modified date; but if it is it's a nonstandard format; haven't looked into it
 )
 
 PFF_FILE_ENTRY_v3 = PFF_FILE_ENTRY_v2 + Struct(
-  "compression_level" / Int32ul
+  "compression_level" / Int32ul # again, what other extractors say
 )
 
 def entry_for(entry_size: int):
@@ -37,31 +38,54 @@ def entry_for(entry_size: int):
       return entry_type
   raise Exception("Unrecognized File Segment Size %s" % (entry_size))
 
+class PFFFileEntry(object):
+  def __init__(self, parent, entry):
+    self.parent = parent
+    self.entry = entry
+    for key in entry.keys():
+      if not key.startswith('_'):
+        if key in ['packed_date']:
+          setattr(self, key, datetime.datetime.utcfromtimestamp(entry[key]))
+        else:
+          setattr(self, key, entry[key])
+   
+  def __str__(self):
+    return '{name: <16} {packed: <20} {size: <10}'.format(**{
+      'name': self.file_name,
+      'packed': str(self.packed_date),
+      'size': self.file_size
+    }) 
+
+  def __repr__(self):
+    return repr(self.entry)
+
 class PFFArchive(object):
   def __init__(self, stream):
     self.stream = stream
-    self.load()
-
-  def load(self):
+    self.file_entries = []
+    
     self.stream.seek(0)
     self.header = PFF3_HEADER.parse(self.stream.read(PFF3_HEADER.sizeof()))
 
     self.stream.seek(-PFF_FOOTER.sizeof(), 2)
     self.footer = PFF_FOOTER.parse(self.stream.read(PFF_FOOTER.sizeof()))
 
-    entry_type = entry_for(self.header["file_segment_size"])
-    self.stream.seek(self.header["file_list_offset"])
-    self.file_entries = []
-    for i in range(self.header["file_count"]):
-      self.file_entries.append(entry_type.parse(self.stream.read(entry_type.sizeof())))
+    entry_size = self.header.file_segment_size
+    entry_type = entry_for(entry_size)
+    self.stream.seek(self.header.file_list_offset)
+    for i in range(self.header.file_count):
+      entry = entry_type.parse(self.stream.read(entry_size))
+      self.file_entries.append(PFFFileEntry(self, entry))
 
 
 if __name__ == '__main__':
+  import ipaddress
   r = open('/media/tachyon/Tachyon.pff', 'rb')
   pff = PFFArchive(r)
   for entry in pff.file_entries:
     print(entry)
+    
   print(pff.header)
   print(pff.footer)
-
+  print(ipaddress.IPv4Address(pff.footer.system_ip))
 
