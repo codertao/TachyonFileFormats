@@ -59,6 +59,9 @@ class PFFFileEntry(object):
   def __repr__(self):
     return repr(self.entry)
 
+  def load_bytes(self):
+    return self.parent.load_bytes(self)
+
 class PFFArchive(object):
   def __init__(self, stream):
     self.stream = stream
@@ -76,6 +79,10 @@ class PFFArchive(object):
     for i in range(self.header.file_count):
       entry = entry_type.parse(self.stream.read(entry_size))
       self.file_entries.append(PFFFileEntry(self, entry))
+
+  def load_bytes(self, entry):
+    self.stream.seek(entry.file_location)
+    return self.stream.read(entry.file_size)
 
 
 if __name__ == '__main__':

@@ -1,17 +1,41 @@
 #!/usr/bin/env python3
 
 import datetime
+import subprocess
 import urwid
 
 import pff
 
+debug_box = urwid.Text('')
+
+def to_hexdump(data):
+  res = subprocess.run(['/usr/bin/xxd', '-c', '32'], input=data, stdout=subprocess.PIPE)
+
+  return res.stdout
+
 class PureTextTreeWidget(urwid.TreeWidget):
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self._w = urwid.AttrWrap(self._w, None)
+    self._w.attr = 'normal'
+    self._w.focus_attr = 'focusd'
+    self._selectable = True
+
   def get_display_text(self):
     return self.get_node().get_value()
 
+  def render(self, size, focus=False):
+    if hasattr(self.get_node(), 'has_focus'):
+      self.get_node().has_focus(focus)
+    return super().render(size, focus)
+
+  def selectable(self):
+    return hasattr(self.get_node(), 'has_focus')
+    #return True
 
 class FileNode(urwid.TreeNode):
   def __init__(self, parent, entry):
+    self.is_focused = False
     self.entry = entry
 
     txt = '{} ({})'.format(entry.file_name, entry.file_size)
@@ -19,6 +43,13 @@ class FileNode(urwid.TreeNode):
 
   def get_widget(self):
     return PureTextTreeWidget(self)
+
+  def has_focus(self, val):
+    global debug_box
+    if val and not self.is_focused:
+      debug_box.set_text(to_hexdump(self.entry.load_bytes()))
+    self.is_focused = val
+
 
 class ExtensionNode(urwid.ParentNode):
   def __init__(self, parent, extension, entries):
@@ -76,16 +107,24 @@ if __name__ == '__main__':
   with open('/media/tachyon/Tachyon.pff', 'rb') as r:
     a = pff.PFFArchive(r)
 
-  tree_box = urwid.TreeListBox(urwid.TreeWalker(ArchiveNode(a)))
-  tree_box.offset_rows = 10
-  header = urwid.Text("The Header")
-  footer = urwid.Text("The Footer")
+    tree_box = urwid.TreeListBox(urwid.TreeWalker(ArchiveNode(a)))
+    tree_box.offset_rows = 10
 
-  view = urwid.Frame(tree_box, header=header, footer=footer)
+    #debug_box = urwid.Text("Test Debug Etc\n"*30)
 
-  loop = urwid.MainLoop(view, unhandled_input=handle_input)
-  loop.run()
-  print("stuff")
+    cols_box = urwid.Columns([(30, tree_box), ('weight', 120, urwid.Filler(debug_box, 'top'))], 3)
+
+    header = urwid.Text("The Header")
+    footer = urwid.Text("The Footer")
+
+    view = urwid.Frame(cols_box, header=header, footer=footer)
+
+    palette = [
+      ('focusd', 'black', 'dark green')
+    ]
+
+    loop = urwid.MainLoop(view, palette, unhandled_input=handle_input)
+    loop.run()
 
 
 
