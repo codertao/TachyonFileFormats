@@ -4,6 +4,7 @@ import datetime
 import subprocess
 import urwid
 
+import cbin
 import pff
 
 debug_box = urwid.Text('')
@@ -47,7 +48,12 @@ class FileNode(urwid.TreeNode):
   def has_focus(self, val):
     global debug_box
     if val and not self.is_focused:
-      debug_box.set_text(to_hexdump(self.entry.load_bytes()))
+      content = self.entry.load_bytes()
+      if cbin.is_cbin(content):
+        content = cbin.parse_cbin(content)
+      else:
+        content = to_hexdump(content)
+      debug_box.set_text(content)
     self.is_focused = val
 
 
@@ -123,7 +129,7 @@ if __name__ == '__main__':
       ('focusd', 'black', 'dark green')
     ]
 
-    loop = urwid.MainLoop(view, palette, unhandled_input=handle_input)
+    loop = urwid.MainLoop(view, palette, handle_mouse=False, unhandled_input=handle_input)
     loop.run()
 
 
