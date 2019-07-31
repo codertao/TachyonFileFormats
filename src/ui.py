@@ -52,7 +52,7 @@ class FileNode(urwid.TreeNode):
       if cbin.is_cbin(content):
         content = cbin.parse_cbin(content)
       else:
-        content = to_hexdump(content)
+        content = to_hexdump(content[:4096])
       debug_box.set_text(content)
     self.is_focused = val
 

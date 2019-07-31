@@ -50,7 +50,7 @@ CBIN_CONTENT = Struct(
     "param_count" / Int32ul
   )),
   "params" / Array(lambda t: sum(map(lambda i: i.param_count, t.entries)), Struct(
-    "param" / Int32ul,
+    "param" / Union(0, "int"/Int32sl, "float"/Float32l),
     "param_type" / Int32ul
   )),
   "strings" / Array(this.header.text_count, CString('ascii'))
@@ -82,24 +82,32 @@ def parse_cbin(b):
   b = decrypt_cbin(b)
   content = CBIN_CONTENT.parse(b)
   
-  res = [str(content.group_count)]
+  res = []
   item_idx = 0
   param_idx = 0
   for group in content.groups:
-    res.append(str(group.group_id))
-    res.append(str(group.entry_count))
+    res.append(content.strings[group.group_id-1])
     if not group.entry_count:
       continue
     for i in range(group.entry_count+1):
       item = content.entries[item_idx]
       item_idx += 1
-      res.append('  '+str(item.entry_id))
-      res.append('  '+str(item.param_count))
+      if item.entry_id == 0:
+        continue
+      e = content.strings[item.entry_id-1]+': '
+      p = []
       for j in range(item.param_count):
         param = content.params[param_idx]
         param_idx += 1
-        res.append('    '+str(param.param))
-        res.append('    '+str(param.param_type))
+        if param.param_type == 4:
+          p.append(content.strings[param.param.int-1])
+        elif param.param_type == 2:
+          p.append(str(param.param.float))
+        elif param.param_type == 1:
+          p.append(str(param.param.int))
+        else:
+          p.append('Unk('+str(param.param_type)+' '+str(param.param.int))
+      res.append('  '+e+(', '.join(p)))
 
   return '\n'.join(res).encode('utf8')
   return json.dumps(res, indent=2).encode('utf8')
