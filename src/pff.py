@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from construct import *
 import datetime
 
@@ -87,11 +89,25 @@ class PFFArchive(object):
 
 if __name__ == '__main__':
   import ipaddress
-  r = open('/media/tachyon/Tachyon.pff', 'rb')
+  import cbin
+  import json
+  r = open('/home/matt/Tach-play/Tachyon.pff', 'rb')
   pff = PFFArchive(r)
   for entry in pff.file_entries:
     print(entry)
-    
+    with open(f'/home/matt/Tach-play/pff/{entry.file_name}', 'wb') as w:
+        b = entry.load_bytes()
+        w.write(b)
+        if b.startswith(b'CBIN'):
+            try:
+                res = cbin.decrypt_cbin(b)
+                with open(f'/home/matt/Tach-play/pff/{entry.file_name}.raw', 'wb') as w2:
+                    w2.write(res)
+                res = cbin.parse_cbin(b)
+                with open(f'/home/matt/Tach-play/pff/{entry.file_name}.inf', 'wb') as w2:
+                    w2.write(res)
+            except:
+                print(f"Error CBINing {entry.file_name}")
   print(pff.header)
   print(pff.footer)
   print(ipaddress.IPv4Address(pff.footer.system_ip))

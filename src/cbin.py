@@ -110,7 +110,7 @@ def parse_cbin(b):
       res.append('  '+e+(', '.join(p)))
 
   return '\n'.join(res).encode('utf8')
-  return json.dumps(res, indent=2).encode('utf8')
+  #return json.dumps(res, indent=2).encode('utf8')
   #print(header)
   #return str(res).encode('utf8')
 
