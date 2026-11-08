@@ -84,15 +84,16 @@ def parse(path):
             # i.e. 128=90deg, 256=180deg. (<<16 at runtime so the trig table can interpolate.)
             orient = (s32(o + 0x14), s32(o + 0x18), s32(o + 0x1c))
             flags = u32(d, o + 0x24)
-            obj_id = s32(o + 0x5c)    # object id (-1 = none)
+            obj_id = s32(o + 0x20)    # object id (what triggers / Sped_FindDef use)
+            group = s32(o + 0x54)     # trigger group id (-1 = none)
             alias = sped[idx] if 0 <= idx < len(sped) else "?"
             # +0x38 is per-kind: ships = team/side byte; gates = destination sector .spx name
             if kind == 1:
                 extra = "dest=%s" % cstr(d, o + 0x38)
             else:
                 extra = "team=%d" % d[o + 0x38]
-            print("  [%d] %-26s pos=%s orient=%s %s id=%d flags=0x%x (kind=%d sz=0x%x)"
-                  % (i, alias, pos, orient, extra, obj_id, flags, kind, size))
+            print("  [%d] %-26s pos=%s orient=%s %s id=%d grp=%d flags=0x%x (kind=%d sz=0x%x)"
+                  % (i, alias, pos, orient, extra, obj_id, group, flags, kind, size))
             if size == 0:
                 break
             o += size
