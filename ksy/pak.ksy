@@ -231,7 +231,9 @@ types:
         type: vec3_fx
         repeat: expr
         repeat-expr: n_points54
-        doc: Purpose unknown.
+        doc: |
+          Child pivots: child k of a part using this mesh sits at part position +
+          part matrix * points54[k]. After load, part 0's children are all the other parts.
       attach_points:
         pos: attach_ofs
         type: attach_point
