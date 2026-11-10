@@ -7,7 +7,8 @@ hand-rolled parser in `../src`.
 | Spec | Format | Source parser | Status |
 |------|--------|---------------|--------|
 | [`pff.ksy`](pff.ksy) | PFF asset archive | `src/pff.py` | Complete — parses straight from file |
-| [`spd.ksy`](spd.ksy) | SPD / `.SPX` sector file | `src/spd.py`, `src/spxtrig.py` | Core sections + mission trigger table, dialog/scene lists complete; some header dwords + record tails left as unknowns. Parses all 302 shipped SPX files |
+| [`spd.ksy`](spd.ksy) | SPD / `.SPX` sector file | `src/spd.py`, `src/spxtrig.py` | Full header map, SPED objects, per-kind placement bodies (gate, asteroid, AI object, pickup), triggers, sub-sectors, waypoint routes, labels, group target rules, aliases, group names. A few placement fields (kind-3 +0x3b/+0x58, gate +0x54/+0x64) still unknown. Parses all 302 shipped SPX files |
+| [`rtxt.ksy`](rtxt.ksy) | RTXT string table (`.bin`) | `src/rtxt.py` | Complete. Parses all 23 shipped RTXT files |
 | [`cbin.ksy`](cbin.ksy) | CBIN config container | `src/cbin.py` | Header only (see caveats) |
 | [`pak.ksy`](pak.ksy) | PAK (`3DPK`) 3D model | `src/pak.py` | Complete structure: LODs, parts, 3DO1 meshes, collision, states, textures. Texture pixels stay RLE-compressed (see caveats). Some material/part bytes unknown |
 
@@ -36,9 +37,10 @@ language genuinely can't bridge:
    `text_offset`) the string table are expressible; the two summed arrays are
    documented inline and must be walked manually.
 
-The `.SPX` placement records are variable-stride but *self-describing* (each
-record's `stride` field gives its length), so those parse fine; only a few
-header dwords and per-object record tails remain undecoded.
+The `.SPX` placement and spawn-list records are variable-stride but
+*self-describing* (each record carries its own length), so those parse fine.
+The header is variable length (0x108 / 0x11c / 0x1a4); fields past
+`first_offset` are guarded with `if:`.
 
 ## PAK caveats
 

@@ -27,12 +27,30 @@ PFF_FILE_ENTRY_v1 = Struct(
 )
 
 PFF_FILE_ENTRY_v2 = PFF_FILE_ENTRY_v1 + Struct(
-  "unknown1" / Int32ul # other extractors say this is a modified date; but if it is it's a nonstandard format; haven't looked into it
+  "crc" / Int32ul  # CRC-32/BZIP2 of the file body (MSB-first poly 0x04C11DB7, init/xorout ~0); see crc32_bzip2
 )
 
 PFF_FILE_ENTRY_v3 = PFF_FILE_ENTRY_v2 + Struct(
   "compression_level" / Int32ul # again, what other extractors say
 )
+
+def _crc_table():
+  t = []
+  for i in range(256):
+    c = i << 24
+    for _ in range(8):
+      c = ((c << 1) ^ 0x04C11DB7) & 0xffffffff if c & 0x80000000 else (c << 1) & 0xffffffff
+    t.append(c)
+  return t
+
+_CRC_TABLE = _crc_table()
+
+def crc32_bzip2(data: bytes) -> int:
+  """The checksum stored in 36/40-byte PFF entries (CRC-32/BZIP2: MSB-first, init/xorout ~0)."""
+  c = 0xffffffff
+  for b in data:
+    c = ((c << 8) & 0xffffffff) ^ _CRC_TABLE[((c >> 24) ^ b) & 0xff]
+  return c ^ 0xffffffff
 
 def entry_for(entry_size: int):
   for entry_type in [PFF_FILE_ENTRY_v1, PFF_FILE_ENTRY_v2, PFF_FILE_ENTRY_v3]:

@@ -7,6 +7,8 @@ This is done mostly because I want to steal some of the resources for my own per
 # File Types
 
 * PFF
+* RTXT
+* SPX
 * SBF
 * PCX
 * OCF
@@ -18,9 +20,31 @@ This is done mostly because I want to steal some of the resources for my own per
 
 PFF's are basically a giant tar file of all game assets- it's a format used across several NovaLogic games, probably to help save on disk space by decreasing file system overhead (a 1k texture doesn't need a 4k block and a filesystem entry). The version used in Tachyon doesn't support compressed content. The file has a header section, which includes the list of file entries, and then a nice soup of files catted together.
 
-There are apparently at least 3 different versions of the file format, version 3, version 3, and version 4. Mostly differentiated by the size of the file entry- 32 bytes, 36 bytes, or 40 bytes. 
+There are several versions of the format (`PFF0`, `PFF2`, `PFF3`, `PFF4`), told apart by the version digit and the size of a file entry: 32, 36, or 40 bytes. Tachyon's is `PFF3` with 36-byte entries:
 
-## Header
+```
+header (20 B)  u32 header_size (20), "PFF3", u32 file_count, u32 entry_size (36), u32 table_offset
+...            file bodies
+table          file_count x { u32 deleted, u32 offset, u32 size, u32 unix_time, char name[16], u32 crc }
+footer (12 B)  u32 packer IP (big-endian), u32 0, "KING"
+```
+
+`crc` is CRC-32/BZIP2 of the file body (MSB-first poly `0x04C11DB7`, init and xorout `0xFFFFFFFF`). That's the non-reflected variant, so zlib's `crc32` won't match; `src/pff.py` has `crc32_bzip2`.
+
+# RTXT
+
+The compiled string tables: `JOBS.BIN`, `ITEMS.BIN`, `HELPTEXT.BIN`, `NEWS.BIN`, the region tables, 23 files in all. Each is an INI-style `[group] key=value` table: a record table of value strings, then a group table of group names and key names. Not encrypted.
+
+```sh
+python3 src/rtxt.py dump  JOBS.BIN               # [JOBS] / JOB_BORA00=Gate Blueprints / ...
+python3 src/rtxt.py check path/to/extracted/     # parse every RTXT
+```
+
+Spec: `ksy/rtxt.ksy`. How the engine loads and queries them: `decomp/notes/formats.md` "RTXT". [NovaHQ's NovaResearch](https://github.com/Novahq-net/NovaResearch) documents the same format for the other NovaLogic games.
+
+# SPX
+
+Sector files: objects and their per-kind placement records, waypoint routes, per-group AI target rules, the mission trigger script, sub-sector stages. Magic `SPD\x01` at offset 4. `src/spd.py FILE.SPX` prints the layout and `src/spxtrig.py FILE.SPX` prints the trigger script with names resolved (group ids are named when `SHIPTEXT.BIN` sits next to the SPX); the spec is `ksy/spd.ksy`, and engine notes are in `decomp/notes/formats.md` and `missions.md`. Several header fields (labels, aliases, group names, the per-group lists, region ids, the radiation/fog flags) were first mapped by NovaResearch's SPX doc and then checked against the data and `space.exe`.
 
 
 

@@ -24,14 +24,14 @@ COND = {
                    6: "dock-menu action v on obj b", 7: "interacted/picked up obj b",
                    8: "triggered obj b", 9: "left sector/aborted", 10: "credits changed"}),
     1: ("OBJ", {0: "attacked by player", 2: "destroyed", 3: "damage% >= v", 4: "damage%(2) >= v",
-                5: "reached waypoint v (route<<16|pt)", 6: "AI activated", 7: "docked",
+                5: "reached waypoint", 6: "AI activated", 7: "docked",
                 10: "code 10 (expired?)", 11: "code 11 (b)", 12: "code 12 (b)",
                 13: "code 13 (entered bay of b?)", 14: "code 14 (resource hit 0?)", 15: "spawned"}),
     2: ("GATE", {0: "state changed"}),
     3: ("VAR", {0: "== v", 1: "== v", 2: "> v", 3: "< v"}),
     4: ("ENEMIES", {0: "all dead", 1: "% killed >= v"}),
     5: ("GROUP", {0: "member destroyed (none left?)", 1: "damage% >= v",
-                  2: "member reached waypoint v", 3: "member spawned", 4: "member attacked by player",
+                  2: "member reached waypoint", 3: "member spawned", 4: "member attacked by player",
                   5: "member event 5", 6: "member AI activated"}),
     6: ("CAT6", {}),
     7: ("DIALOG", {0: "reached line v"}),
@@ -58,7 +58,7 @@ ACT = {
     6: ("GROUP", {0: "spawn", 1: "spawn staggered", 2: "activate", 3: "set AI order arg2",
                   4: "CHANGE_RACE", 5: "ENTER_OBJ_BAY", 6: "deactivate", 7: "TAKEOFF next",
                   8: "CHANGE_WP"}),
-    7: ("NAV", {0: "set nav destination"}),
+    7: ("NAV", {0: "set player nav destination"}),  # arg = region<<16 | sector
     8: ("ORDER+", {}),     # add objective of type `code` about obj/group arg (this sector)
     9: ("ORDER-", {}),     # remove objective (10 = clear all, 11 = reset order state)
     10: ("ORDER_OK", {}),  # mark objective complete
@@ -120,6 +120,18 @@ def dump(path, V):
         o += sz
     dialogs = [cstr(u(0x5c)[0] + i * 0x10, 0x10) for i in range(u(0x58)[0])]
     scenes = [cstr(u(0x68)[0] + i * 0x10, 0x10) for i in range(u(0x64)[0])]
+    # waypoint routes: 0x14-byte headers, +0x08 = tag. Events say tag<<16 | point index.
+    route_tag = {u(u(0x90)[0] + i * 0x14 + 8)[0]: i for i in range(u(0x8c)[0])}
+
+    def wp(v):
+        t, pt = v >> 16, v & 0xffff
+        return "route tag %d%s point %d" % (t, " (#%d)" % route_tag[t] if t in route_tag else " (missing)", pt)
+
+    from spd import shiptext_groups
+    fg_index, fg_base = shiptext_groups(path)
+    fg_names = {v - fg_base: k for k, v in fg_index.items() if v >= fg_base}
+
+    def grp(g): return "group %d(%s)" % (g, fg_names[g]) if g in fg_names else "group %d" % g
 
     def obj(i): return "obj %d(%s)" % (i, objs[i][0]) if i in objs else "obj %d" % i
     def var(s): return V.get((s >> 16, s & 0xffff), "var %d:%d" % (s >> 16, s & 0xffff))
@@ -136,7 +148,7 @@ def dump(path, V):
             desc = codes.get(code, "code %d" % code)
             if cat == 3:   subj = var(sub)
             elif cat == 1: subj = obj(sub)
-            elif cat == 5: subj = "group %d" % sub
+            elif cat == 5: subj = grp(sub)
             elif cat == 7: subj = "dialog[%d]" % sub
             else:          subj = "" if sub == 0 else "sub %d" % sub
             extra = []
@@ -144,6 +156,8 @@ def dump(path, V):
             elif cat == 0 and code == 1: extra.append("b=%s" % obj(b))
             if fl & 1: extra.append("momentary")
             if fl & 4: extra.append("repeat")
+            if (cat, code) in ((1, 5), (5, 2)):
+                desc = "%s %s" % (desc, wp(val))
             pre = "  IF      " if join is None else "  %-8s" % JOIN.get(join, "J%d" % join)
             print("%s%s %s %s  v=%d %s" % (pre, cname, subj, desc, val,
                                             ("[" + ", ".join(extra) + "]") if extra else ""))
@@ -157,14 +171,16 @@ def dump(path, V):
             if cat in (1,):    subj = var(arg)
             elif cat == 4:     subj = var(arg)
             elif cat == 5:     subj = obj(arg)
-            elif cat == 6:     subj = "group %d" % arg
+            elif cat == 6:     subj = grp(arg)
             elif cat == 2:     subj = dialogs[arg] if 0 <= arg < len(dialogs) else "dialog[%d]" % arg
             elif cat == 3:     subj = scenes[arg2] if 0 <= arg2 < len(scenes) else "scene[%d]" % arg2
             elif cat in (8, 9, 10, 11, 12, 13):
                 print("  DO      %s type %d about %s" % (aname, code, obj(arg2))); continue
             elif cat == 0:     subj = obj(arg)
-            elif cat == 7:     subj = "nav %d:%d" % (arg >> 16, arg & 0xffff)
+            elif cat == 7:     subj = "region %d sector %d" % (arg >> 16, arg & 0xffff)
             else:              subj = "arg 0x%x" % arg
+            if (cat, code) in ((5, 13), (6, 8)):   # CHANGE_WP: arg2 = route tag<<16 | point
+                print("  DO      %s %s: %s %s" % (aname, subj, desc, wp(arg2))); continue
             print("  DO      %s %s: %s  arg2=%d" % (aname, subj, desc, arg2))
 
 
